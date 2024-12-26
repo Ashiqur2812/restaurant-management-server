@@ -9,7 +9,6 @@ app.use(cors());
 app.use(express.json());
 
 
-
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.yt5iw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 // console.log(uri);
 
@@ -31,7 +30,20 @@ async function run() {
         // get all foods from db 
 
         app.get('/foods', async (req, res) => {
-            const result = await foodsCollection.find().toArray();
+            const filter = req.query.filter;
+            const search = req.query.search;
+            // console.log(search);
+            let query = {
+                foodName: {
+                    $regex: search,
+                    $options: 'i',
+                },
+            };
+            // console.log(search)
+            if (filter) {
+                query.foodCategory = filter;
+            }
+            const result = await foodsCollection.find(query).toArray();
             res.send(result);
         });
 
