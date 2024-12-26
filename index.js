@@ -26,6 +26,7 @@ async function run() {
     try {
 
         const foodsCollection = client.db('food-db').collection('foods');
+        const purchaseCollection = client.db('purchase-db').collection('purchases');
 
         // get all foods from db 
 
@@ -34,12 +35,16 @@ async function run() {
             res.send(result);
         });
 
+        // get all food by a single user from db
+
         app.get('/foods/:email', async (req, res) => {
             const email = req.params.email;
             const filter = { 'buyer.email': email };
             const result = await foodsCollection.find(filter).toArray();
             res.send(result);
         });
+
+        // get a single food data by id from db
 
         app.get('/food/:id', async (req, res) => {
             const id = req.params.id;
@@ -48,11 +53,47 @@ async function run() {
             res.send(result);
         });
 
+        // get all orders by a specific user
+
+        app.get('/my-orders/:email', async (req, res) => {
+            const email = req.params.email;
+            console.log(email);
+            query = { 'buyer.email': email };
+            const result = await purchaseCollection.find(query).toArray();
+            console.log(result);
+            res.send(result);
+        });
+
         app.post('/add-food', async (req, res) => {
             const food = req.body;
             const result = await foodsCollection.insertOne(food);
             res.send(result);
         });
+
+        app.post('/purchase-food', async (req, res) => {
+            const purchase = req.body;
+            // console.log(purchase);
+            const query = { 'buyer.email': purchase.buyer.email, foodId: purchase.foodId };
+            // console.log(query);
+            const alreadyExist = await purchaseCollection.findOne(query);
+            if (alreadyExist) {
+                return res.status(400).send('You have already purchased');
+            }
+            console.log('if already exist-->', alreadyExist);
+
+            const result = await purchaseCollection.insertOne(purchase);
+
+            // increase purchase count in food collection
+            const filter = { _id: new ObjectId(purchase.foodId) };
+            const update = {
+                $inc: { purchaseCount: 1 }
+            };
+            const updatePurchaseCount = await foodsCollection.updateOne(filter, update);
+
+            res.send(result);
+        });
+
+        // save a purchase data in db
 
         app.put('/update-food/:id', async (req, res) => {
             const id = req.params.id;
@@ -69,7 +110,7 @@ async function run() {
         app.delete('/food/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
-            const result = await foodsCollection.deleteOne(query);
+            const result = await purchaseCollection.deleteOne(query);
             res.send(result);
         });
 
