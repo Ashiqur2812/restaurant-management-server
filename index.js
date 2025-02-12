@@ -4,13 +4,13 @@ const cors = require('cors');
 const app = express();
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const morgan = require('morgan')
+const morgan = require('morgan');
 const port = process.env.PORT || 4000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const corsOptions = {
     origin: ['https://restaurant-project-virid.vercel.app','https://restaurant-management-server-rouge.vercel.app'],
-    origin: ['http://localhost:/5173','http://localhost:4000'],
+    // origin: ['http://localhost:5173', 'http://localhost:4000'],
     credentials: true,
     optionalSuccessStatus: 200,
 };
@@ -80,24 +80,37 @@ async function run() {
 
         // get all foods from db 
 
-        app.get('/foods', async (req, res) => {
-            const filter = req.query.filter;
-            const search = req.query.search;
-            let query = {};
-            if (req.query?.search) {
-                query = {
-                    foodName: {
-                        $regex: search,
-                        $options: 'i',
-                    }
-                };
-            }
-            if (filter) {
-                query.foodCategory = filter;
-            }
-            const result = await foodsCollection.find(query).toArray();
-            res.send(result);
-        });
+    app.get('/foods', async (req, res) => {
+    const filter = req.query.filter;
+    const search = req.query.search;
+    const sort = req.query.sort; 
+
+    let query = {};
+
+    // Search functionality
+    if (search) {
+        query.foodName = { $regex: search, $options: 'i' };
+    }
+
+    // Filter functionality
+    if (filter) {
+        query.foodCategory = filter;
+    }
+
+    // Sorting logic for MongoDB
+    let sortOption = {};
+    if (sort === "asc") {
+        sortOption.price = 1; // Sort by price in ascending order
+    } else if (sort === "desc") {
+        sortOption.price = -1; // Sort by price in descending order
+    }
+
+    // Fetch data from MongoDB with sorting
+    const result = await foodsCollection.find(query).sort(sortOption).toArray();
+
+    res.send(result);
+});
+
 
         // get all food by a single user from db
 
@@ -148,7 +161,7 @@ async function run() {
         app.post('/purchase-food', async (req, res) => {
             const purchase = req.body;
             // console.log(purchase);
-            const query = { 'buyer.email': purchase.buyer.email, foodId: purchase.foodId };
+            const query = { 'buyer.email': purchase.buyer?.email, foodId: purchase?.foodId };
             // console.log(query);
             const alreadyExist = await purchaseCollection.findOne(query);
             if (alreadyExist) {
@@ -164,8 +177,8 @@ async function run() {
                 $inc: { purchaseCount: 1 }
             };
             const updatePurchaseCount = await foodsCollection.updateOne(filter, update);
-
-            res.send(result);
+            console.log({ result, updatePurchaseCount });
+            res.send({ result, updatePurchaseCount });
         });
 
         // save a purchase data in db
