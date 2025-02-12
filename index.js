@@ -4,11 +4,13 @@ const cors = require('cors');
 const app = express();
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const morgan = require('morgan')
 const port = process.env.PORT || 4000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const corsOptions = {
-    origin: ['http://localhost:5173'],
+    origin: ['https://restaurant-project-virid.vercel.app','https://restaurant-management-server-rouge.vercel.app'],
+    origin: ['http://localhost:/5173','http://localhost:4000'],
     credentials: true,
     optionalSuccessStatus: 200,
 };
@@ -16,6 +18,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
+app.use(morgan('dev'));
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.yt5iw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -65,7 +68,7 @@ async function run() {
                 .send({ success: true });
         });
 
-        app.get('/logout', async (req, res) => {
+        app.post('/logout', async (req, res) => {
             res
                 .clearCookie('token', {
                     maxAge: 0,
@@ -80,14 +83,15 @@ async function run() {
         app.get('/foods', async (req, res) => {
             const filter = req.query.filter;
             const search = req.query.search;
-            // console.log(search);
-            let query = {
-                foodName: {
-                    $regex: search,
-                    $options: 'i',
-                },
-            };
-            // console.log(search)
+            let query = {};
+            if (req.query?.search) {
+                query = {
+                    foodName: {
+                        $regex: search,
+                        $options: 'i',
+                    }
+                };
+            }
             if (filter) {
                 query.foodCategory = filter;
             }
@@ -97,8 +101,12 @@ async function run() {
 
         // get all food by a single user from db
 
-        app.get('/foods/:email', async (req, res) => {
+        app.get('/all-foods/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
+            const decodedEmail = req.user?.email;
+            if (decodedEmail !== email) {
+                return res.status(401).send({ message: 'Unauthorized access' });
+            }
             const filter = { 'buyer.email': email };
             const result = await foodsCollection.find(filter).toArray();
             res.send(result);
@@ -115,12 +123,19 @@ async function run() {
 
         // get all orders by a specific user
 
-        app.get('/my-orders/:email', async (req, res) => {
+        app.get('/my-orders/:email', verifyToken, async (req, res) => {
+            const decodedEmail = req.user?.email;
             const email = req.params.email;
-            console.log(email);
+            // console.log('email from token -->', decodedEmail);
+            // console.log('email from params-->', email);
+
+            if (decodedEmail !== email) {
+                return res.status(401).send({ message: 'Unauthorized access' });
+            }
+            // console.log(email);
             query = { 'buyer.email': email };
             const result = await purchaseCollection.find(query).toArray();
-            console.log(result);
+            // console.log(result);
             res.send(result);
         });
 
@@ -139,7 +154,7 @@ async function run() {
             if (alreadyExist) {
                 return res.status(400).send('You have already purchased');
             }
-            console.log('if already exist-->', alreadyExist);
+            // console.log('if already exist-->', alreadyExist);
 
             const result = await purchaseCollection.insertOne(purchase);
 
@@ -175,7 +190,7 @@ async function run() {
         });
 
 
-        await client.db("admin").command({ ping: 1 });
+        // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
